@@ -23,6 +23,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+import static org.springframework.security.config.Customizer.withDefaults;
+
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
 public class WebSecurityConfig {
@@ -40,11 +42,12 @@ public class WebSecurityConfig {
 
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-    return http.authorizeHttpRequests(
-                    requests -> requests
+    return http.authorizeHttpRequests(requests ->
+                    requests
                             .requestMatchers(HttpMethod.POST, "/user/login", "/user/register").permitAll()
-                            .requestMatchers(HttpMethod.GET, "**", "**/**", "**/**/**", "/swagger-ui/*",  "/oauth/**").permitAll()
+                            .requestMatchers(HttpMethod.GET, "**", "**/**", "**/**/**", "/swagger-ui/**", "/oauth/**").permitAll()
                             .anyRequest().authenticated())
+            .oauth2Login(withDefaults())
             .addFilterAfter(new CustomAuthenticationFilter(new AntPathRequestMatcher("/user/login", "POST"),
                     authenticationManager(), jwtProperties), UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(new CustomAuthorizationFilter(userService, jwtProperties),
@@ -53,6 +56,19 @@ public class WebSecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .build();
+
+            //hz
+//            .authorizeRequests()
+//            .antMatchers("/", "/login", "/oauth/**").permitAll()
+//            .anyRequest().authenticated()
+//            .and() // deprecated, but needed for fluent API
+//            .formLogin().permitAll()
+//            .and() // deprecated, but needed for fluent API
+//            .oauth2Login()
+//            .loginPage("/login")
+//            .userInfoEndpoint()
+//            .userService(oauthUserService)
+//            .and(); // deprecated, but needed for fluent API
   }
 
   @Bean
