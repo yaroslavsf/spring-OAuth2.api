@@ -1,14 +1,19 @@
+import {Route, BrowserRouter as Router, Routes} from "react-router-dom";
+import {Login} from "./components/Login";
+import {Register} from "./components/Register";
+
 function App() {
   return (
-    <div className="container">
-      <form>
-        <input type="text"/>
-        <input type="password"/>
-        <button>Login</button>
-        <button>Login with github</button>
-        <button>Login with google</button>
-      </form>
-    </div>
+      <>
+      <Router>
+          <Routes>
+              <Route path='/' element={<Login/>}/>
+              <Route path='/login' element={<Login/>}/>
+              <Route path='/register' element={<Register/>}/>
+              <Route path='*' element={<div>error 404</div>}/>
+          </Routes>
+      </Router>
+      </>
   );
 }
 
