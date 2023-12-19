@@ -53,6 +53,7 @@ public class WebSecurityConfig {
             .oauth2Login(oath2 -> {
               oath2.loginPage("/login").permitAll();
               oath2.successHandler(oAuth2LoginSuccessHandler);
+
             })
             .addFilterAfter(new CustomAuthenticationFilter(new AntPathRequestMatcher("/user/login", "POST"),
                     authenticationManager(), jwtProperties), UsernamePasswordAuthenticationFilter.class)

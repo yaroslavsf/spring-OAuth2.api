@@ -1,14 +1,19 @@
 package com.example.jwt.core.security;
 
+import com.example.jwt.core.security.helpers.AuthorizationSchemas;
+import com.example.jwt.core.security.helpers.JwtProperties;
 import com.example.jwt.domain.oauth.CustomOAuth2User;
 import com.example.jwt.domain.role.RoleService;
 import com.example.jwt.domain.user.Provider;
 import com.example.jwt.domain.user.User;
+import com.example.jwt.domain.user.UserDetailsImpl;
 import com.example.jwt.domain.user.UserService;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +21,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,7 +40,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 @Component
-@RequiredArgsConstructor
 public class OAuth2LoginSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
     @Autowired
     private RestTemplate restTemplate;
@@ -42,6 +47,14 @@ public class OAuth2LoginSuccessHandler extends SavedRequestAwareAuthenticationSu
     private OAuth2AuthorizedClientService authorizedClientService;
     private final UserService userService;
     private final RoleService roleService;
+    @Autowired
+    public OAuth2LoginSuccessHandler(UserService userService, RoleService roleService, JwtProperties jwtProperties) {
+        this.userService = userService;
+        this.roleService = roleService;
+        this.jwtProperties = jwtProperties;
+    }
+
+    private final JwtProperties jwtProperties;
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)
             throws ServletException, IOException {
@@ -63,6 +76,9 @@ public class OAuth2LoginSuccessHandler extends SavedRequestAwareAuthenticationSu
             String name = attributes.getOrDefault("name", "").toString();
             userService.findByEmail(email)
                     .ifPresentOrElse(user -> {
+                        if (!user.getProvider().provider.equals(oAuth2AuthenticationToken.getAuthorizedClientRegistrationId())) {
+                            throw new RuntimeException("User with this email is already signed up with different service");
+                        }
                         //conditional id/sub
                         DefaultOAuth2User newUser =
                                 new DefaultOAuth2User(List.of(new SimpleGrantedAuthority(user.getRoles().toString())),
@@ -71,6 +87,8 @@ public class OAuth2LoginSuccessHandler extends SavedRequestAwareAuthenticationSu
                                 new OAuth2AuthenticationToken(newUser, List.of(new SimpleGrantedAuthority(user.getRoles().toString())),
                                 oAuth2AuthenticationToken.getAuthorizedClientRegistrationId());
                         SecurityContextHolder.getContext().setAuthentication(securityAuth);
+
+                        response.addHeader(HttpHeaders.AUTHORIZATION, AuthorizationSchemas.BEARER + " " + generateToken(user));
                     }, () -> {
                         //user register
                         User userEntity = new User();
@@ -81,17 +99,36 @@ public class OAuth2LoginSuccessHandler extends SavedRequestAwareAuthenticationSu
                         userEntity.setLastName(splited[1]);
                         userEntity.setCreatedAt(LocalDateTime.now());
                         userEntity.setProvider(("github".equals(oAuth2AuthenticationToken.getAuthorizedClientRegistrationId())) ? Provider.GITHUB : Provider.GOOGLE);
-                        userService.save(userEntity);
+                        User user = userService.save(userEntity);
                         //conditional id/sub
                         DefaultOAuth2User newUser = new DefaultOAuth2User(List.of(new SimpleGrantedAuthority(userEntity.getRoles().toString())),
                                 attributes, ("github".equals(oAuth2AuthenticationToken.getAuthorizedClientRegistrationId())) ? "id" : "sub");
                         Authentication securityAuth = new OAuth2AuthenticationToken(newUser, List.of(new SimpleGrantedAuthority(userEntity.getRoles().toString())),
                                 oAuth2AuthenticationToken.getAuthorizedClientRegistrationId());
                         SecurityContextHolder.getContext().setAuthentication(securityAuth);
+                        response.addHeader(HttpHeaders.AUTHORIZATION, AuthorizationSchemas.BEARER + " " + generateToken(user));
                     });
 
         this.setAlwaysUseDefaultTargetUrl(false);
         super.onAuthenticationSuccess(request, response, authentication);
+    }
+
+    private String generateToken(User user) {
+        UserDetailsImpl userDetails = new UserDetailsImpl(user);
+        SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(userDetails, null,
+                        userDetails.getAuthorities()));
+
+        byte[] keyBytes = Decoders.BASE64.decode(jwtProperties.getSecret());
+
+        return Jwts.builder()
+                .setClaims(Map.of("sub", userDetails.user()
+                        .getId(), "authorities", userDetails.getAuthorities()))
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.getExpirationMillis()))
+                .setIssuer(jwtProperties.getIssuer())
+                .signWith(Keys.hmacShaKeyFor(keyBytes))
+                .compact();
     }
 
     //for github email if its hidden by default
