@@ -8,6 +8,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 public class UserServiceImpl extends ExtendedServiceImpl<User> implements UserService {
 
@@ -30,5 +32,10 @@ public class UserServiceImpl extends ExtendedServiceImpl<User> implements UserSe
   public User register(User user) {
     user.setPassword(bCryptPasswordEncoder.encode(user.getPassword()));
     return save(user);
+  }
+
+  @Override
+  public Optional<User> findByEmail(String email) {
+    return ((UserRepository) repository).findByEmail(email);
   }
 }

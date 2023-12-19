@@ -39,13 +39,14 @@ public class User extends ExtendedAuditEntity {
   }
 
   public User(UUID id, String firstName, String lastName, String email, String password,
-      Set<Role> roles) {
+      Set<Role> roles, Provider provider) {
     super(id);
     this.firstName = firstName;
     this.lastName = lastName;
     this.email = email;
     this.password = password;
     this.roles = roles;
+    this.provider = provider;
   }
 
   public String getFirstName() {
@@ -91,5 +92,13 @@ public class User extends ExtendedAuditEntity {
   public User setRoles(Set<Role> roles) {
     this.roles = roles;
     return this;
+  }
+
+  public Provider getProvider() {
+    return provider;
+  }
+
+  public void setProvider(Provider provider) {
+    this.provider = provider;
   }
 }

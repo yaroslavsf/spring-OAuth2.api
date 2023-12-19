@@ -18,6 +18,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
@@ -32,6 +33,8 @@ public class WebSecurityConfig {
   private final UserService userService;
   private final PasswordEncoder passwordEncoder;
   private final JwtProperties jwtProperties;
+  @Autowired
+  private OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
 
   @Autowired
   public WebSecurityConfig(UserService userService, PasswordEncoder passwordEncoder, JwtProperties jwtProperties) {
@@ -44,10 +47,13 @@ public class WebSecurityConfig {
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     return http.authorizeHttpRequests(requests ->
                     requests
-                            .requestMatchers(HttpMethod.POST, "/user/login", "/user/register").permitAll()
+                            .requestMatchers(HttpMethod.POST, "**", "**/**", "**/**/**","/user/login", "/user/register").permitAll()
                             .requestMatchers(HttpMethod.GET, "**", "**/**", "**/**/**", "/swagger-ui/**", "/oauth/**").permitAll()
                             .anyRequest().authenticated())
-            .oauth2Login(withDefaults())
+            .oauth2Login(oath2 -> {
+              oath2.loginPage("/login").permitAll();
+              oath2.successHandler(oAuth2LoginSuccessHandler);
+            })
             .addFilterAfter(new CustomAuthenticationFilter(new AntPathRequestMatcher("/user/login", "POST"),
                     authenticationManager(), jwtProperties), UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(new CustomAuthorizationFilter(userService, jwtProperties),
@@ -56,19 +62,6 @@ public class WebSecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .build();
-
-            //hz
-//            .authorizeRequests()
-//            .antMatchers("/", "/login", "/oauth/**").permitAll()
-//            .anyRequest().authenticated()
-//            .and() // deprecated, but needed for fluent API
-//            .formLogin().permitAll()
-//            .and() // deprecated, but needed for fluent API
-//            .oauth2Login()
-//            .loginPage("/login")
-//            .userInfoEndpoint()
-//            .userService(oauthUserService)
-//            .and(); // deprecated, but needed for fluent API
   }
 
   @Bean
